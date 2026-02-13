@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Рыцари и Замки</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1410;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Segoe UI',Arial,sans-serif}
+#wrap{display:flex;box-shadow:0 0 60px rgba(0,0,0,.7);border-radius:8px;overflow:hidden}
+canvas{display:block;cursor:pointer}
+#sidebar{width:300px;height:960px;background:linear-gradient(180deg,#1e1914 0%,#16120e 100%);color:#dcd2be;overflow-y:auto;border-left:2px solid #3c3228;padding:12px;user-select:none}
+#sidebar::-webkit-scrollbar{width:6px}
+#sidebar::-webkit-scrollbar-thumb{background:#3c3228;border-radius:3px}
+h2{font-size:20px;margin-bottom:6px;text-shadow:0 1px 4px rgba(0,0,0,.5)}
+.p1-color{color:#50a0ff}
+.p2-color{color:#e04040}
+.msg{font-size:13px;color:#b0a890;margin-bottom:4px}
+.score{font-size:13px;color:#9a9080;margin-bottom:6px}
+.shield-badge{font-size:12px;color:#ffd700;margin-bottom:3px}
+.divider{border:none;border-top:1px solid #3c3228;margin:8px 0}
+.section-title{font-size:15px;font-weight:700;margin-bottom:6px}
+.artifact-list{font-size:12px;margin-bottom:2px;padding-left:4px}
+.artifact-list.has{opacity:1}.artifact-list.empty{opacity:.4}
+.unit-info{background:#252018;border-radius:6px;padding:8px;margin-bottom:8px;border:1px solid #3c3228}
+.unit-name{font-size:16px;font-weight:700;color:#fff;margin-bottom:4px}
+.unit-stat{font-size:12px;color:#b0a890}
+.btn{display:block;width:100%;padding:8px 10px;margin-bottom:5px;border-radius:5px;border:2px solid;font-size:13px;cursor:pointer;text-align:left;transition:filter .15s}
+.btn:hover{filter:brightness(1.25)}
+.btn:active{filter:brightness(.9)}
+.btn-artifact{background:#503c1e;border-color:#ffd700;color:#ffd700}
+.btn-spell{background:#321e50;border-color:#9664ff;color:#c896ff}
+.btn-spell.locked{background:#28201e;border-color:#645050;color:#645050;cursor:default;pointer-events:none}
+.btn-weapon{background:#3c3214;border-color:#ffb448;color:#ffc864}
+.btn-weapon.locked{background:#28241e;border-color:#645050;color:#645050;cursor:default;pointer-events:none}
+.btn-skip{background:#3c3c28;border-color:#8c8460;color:#dcd2be}
+.btn-surrender{background:#501414;border-color:#c83232;color:#c83232}
+.btn-restart{background:#1e3c1e;border-color:#50c850;color:#50c850;font-size:16px;text-align:center;padding:12px}
+.recipe{font-size:11px;opacity:.7;margin-top:2px}
+.desc{font-size:11px;color:#ffd700;margin-top:1px}
+.locked .desc,.locked .recipe{color:#645050}
+#popup{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.92);color:#ffd700;font-size:18px;font-weight:700;padding:14px 36px;border:2px solid #ffd700;border-radius:10px;pointer-events:none;opacity:0;transition:opacity .3s;z-index:10;text-shadow:0 0 10px rgba(255,215,0,.5)}
+#popup.show{opacity:1}
+#gameover{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);display:none;justify-content:center;align-items:center;flex-direction:column;z-index:20}
+#gameover.show{display:flex}
+#gameover h1{font-size:36px;text-shadow:0 0 20px currentColor;margin-bottom:16px}
+#loading{position:fixed;top:0;left:0;width:100%;height:100%;background:#1a1410;display:flex;justify-content:center;align-items:center;flex-direction:column;z-index:30;color:#ffd700;font-size:20px}
+#loading.hide{display:none}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="c"></canvas>
+<div id="sidebar"></div>
+</div>
+<div id="popup"></div>
+<div id="gameover"></div>
+<div id="loading">Загрузка спрайтов...</div>
+<script>
+// ============ КОНСТАНТЫ ============
+const CS=48,COLS=10,ROWS=20,W=COLS*CS,H=ROWS*CS,FPS=30;
+const C_GRID='#3c3228',C_MOVE='rgba(0,200,0,.35)',C_ATK='rgba(200,0,0,.35)',C_SEL='rgba(255,255,0,.4)';
+const C_P1='#508cdc',C_P2='#dc3c3c';
+const ARTIFACT_NAMES=["Трава серебряных","Палочка заклинаний","Трава С.","Посох огня","Волшебная палочка","Солнечные часы","Вода серебряных трав"];
+const ARTIFACT_COLORS={"Трава серебряных":"#b4dcb4","Палочка заклинаний":"#c8b4ff","Трава С.":"#64c864","Посох огня":"#ff7832","Волшебная палочка":"#dca0ff","Солнечные часы":"#ffe664","Вода серебряных трав":"#64b4ff"};
+const SPELL_RECIPES=[
+  {name:"Дождь защиты",desc:"+2 HP всем своим",recipe:{"Трава серебряных":2,"Палочка заклинаний":1,"Трава С.":1}},
+  {name:"Сталь свободы",desc:"+2 Armor всем своим",recipe:{"Посох огня":1,"Трава серебряных":1,"Волшебная палочка":1}},
+  {name:"Небо огня",desc:"Щит на 1 ход противника",recipe:{"Трава С.":3,"Палочка заклинаний":1,"Солнечные часы":1}}
+];
+const WEAPON_RECIPES=[
+  {name:"Солнечный меч",desc:"Урон +3 (любому юниту)",recipe:{"Посох огня":1,"Палочка заклинаний":1,"Солнечные часы":1},stat:"damage",value:3,target:"any"},
+  {name:"Синий лук",desc:"Урон лучника +2",recipe:{"Вода серебряных трав":1,"Трава С.":2,"Посох огня":1,"Палочка заклинаний":1},stat:"damage",value:2,target:"archer"}
+];
+const UNIT_LABELS={knight:"K",cavalry:"C",archer:"A"};
+const UNIT_NAMES={knight:"Рыцарь",cavalry:"Конный",archer:"Лучник"};
+const ASSETS='Tiny Swords/Tiny Swords (Free Pack)/';
+
+// ============ СПРАЙТ-МЕНЕДЖЕР ============
+class SpriteManager{
+  constructor(){
+    this.images={};
+    this.ready=false;
+    this._toLoad=0;
+    this._loaded=0;
+  }
+  _load(key,path){
+    this._toLoad++;
+    const img=new Image();
+    img.onload=()=>{this.images[key]=img;this._loaded++;if(this._loaded>=this._toLoad)this.ready=true};
+    img.onerror=()=>{this._loaded++;if(this._loaded>=this._toLoad)this.ready=true};
+    img.src=ASSETS+path;
+  }
+  loadAll(){
+    // Юниты (спрайт-листы)
+    for(const[color,team]of[['Blue',1],['Red',2]]){
+      const p=`Units/${color} Units`;
+      this._load(`${team}_knight_sheet`,`${p}/Warrior/Warrior_Idle.png`);
+      this._load(`${team}_archer_sheet`,`${p}/Archer/Archer_Idle.png`);
+      this._load(`${team}_cavalry_sheet`,`${p}/Lancer/Lancer_Idle.png`);
+    }
+    // Здания
+    this._load('castle_1','Buildings/Blue Buildings/Castle.png');
+    this._load('castle_2','Buildings/Red Buildings/Castle.png');
+    this._load('tower','Buildings/Blue Buildings/Tower.png');
+    this._load('monastery','Buildings/Blue Buildings/Monastery.png');
+    // Тайлы
+    this._load('tilemap','Terrain/Tileset/Tilemap_color1.png');
+  }
+  // Вырезать кадр 0 из спрайт-листа и отрисовать на canvas
+  drawFrame(ctx,key,frameW,frameH,dx,dy,dw,dh){
+    const img=this.images[key];
+    if(!img)return false;
+    ctx.drawImage(img,0,0,frameW,frameH,dx,dy,dw,dh);
+    return true;
+  }
+  drawImg(ctx,key,dx,dy,dw,dh){
+    const img=this.images[key];
+    if(!img)return false;
+    ctx.drawImage(img,dx,dy,dw,dh);
+    return true;
+  }
+  drawGround(ctx,x,y){
+    const img=this.images['tilemap'];
+    if(!img)return false;
+    ctx.drawImage(img,64,0,64,64,x,y,CS,CS);
+    return true;
+  }
+}
+
+// ============ УТИЛИТЫ ============
+function canCraft(inv,recipe){for(let k in recipe)if((inv[k]||0)<recipe[k])return false;return true}
+function spendRecipe(inv,recipe){for(let k in recipe)inv[k]-=recipe[k]}
+function rk(r,c){return r+','+c}
+
+// ============ КЛАССЫ ============
+class Unit{
+  constructor(player,row,col,hp,damage,armor,maxMoves,type){
+    this.player=player;this.row=row;this.col=col;this.hp=hp;this.maxHp=hp;
+    this.damage=damage;this.armor=armor;this.maxArmor=armor;
+    this.maxMoves=maxMoves;this.movesLeft=0;this.type=type;
+    this.active=false;this.done=false;
+  }
+  takeDamage(d){if(this.armor>0){let a=Math.min(this.armor,d);this.armor-=a;d-=a}this.hp-=d;return this.hp<=0}
+  alive(){return this.hp>0}
+  reset(){this.movesLeft=this.maxMoves;this.done=false;this.active=false}
+}
+function Knight(p,r,c){return new Unit(p,r,c,3,5,4,2,'knight')}
+function Cavalry(p,r,c){return new Unit(p,r,c,5,6,3,3,'cavalry')}
+function Archer(p,r,c){return new Unit(p,r,c,3,2,1,3,'archer')}
+
+class Castle{
+  constructor(p,tr,lc){this.player=p;this.tr=tr;this.lc=lc;this.cells=new Set();
+    for(let r=tr;r<tr+4;r++)for(let c=lc;c<lc+4;c++)this.cells.add(rk(r,c))}
+  has(r,c){return this.cells.has(rk(r,c))}
+}
+class MageTower{
+  constructor(r,c){this.row=r;this.col=c;this.occupant=null}
+  has(r,c){return r===this.row&&c===this.col}
+}
+class Ruins{
+  constructor(tr,lc){this.tr=tr;this.lc=lc;this.cells=new Set();
+    for(let r=tr;r<tr+2;r++)for(let c=lc;c<lc+2;c++)this.cells.add(rk(r,c))}
+  has(r,c){return this.cells.has(rk(r,c))}
+  draw(){return ARTIFACT_NAMES[Math.random()*ARTIFACT_NAMES.length|0]}
+}
+
+class Board{
+  constructor(){
+    this.units=[];
+    this.castle1=new Castle(1,0,3);this.castle2=new Castle(2,16,3);
+    this.towers=[new MageTower(5,3),new MageTower(5,6),new MageTower(14,3),new MageTower(14,6)];
+    this.ruins=new Ruins(9,4);
+    this.units.push(Cavalry(1,3,4),Cavalry(1,3,5));
+    this.units.push(Knight(1,1,3),Knight(1,1,6),Knight(1,2,3),Knight(1,2,6),Knight(1,0,3));
+    this.units.push(Archer(1,0,4),Archer(1,0,5));
+    this.units.push(Knight(1,0,6));
+    this.units.push(Cavalry(2,16,4),Cavalry(2,16,5));
+    this.units.push(Knight(2,17,3),Knight(2,17,6),Knight(2,18,3),Knight(2,18,6),Knight(2,19,3));
+    this.units.push(Archer(2,19,4),Archer(2,19,5));
+    this.units.push(Knight(2,19,6));
+  }
+  at(r,c){return this.units.find(u=>u.alive()&&u.row===r&&u.col===c)||null}
+  free(r,c){return r>=0&&r<ROWS&&c>=0&&c<COLS&&!this.at(r,c)}
+  removeDead(){this.units=this.units.filter(u=>u.alive())}
+  pUnits(p){return this.units.filter(u=>u.player===p&&u.alive())}
+  towerAt(r,c){return this.towers.find(t=>t.has(r,c))||null}
+  inRuins(r,c){return this.ruins.has(r,c)}
+}
+
+// ============ ИГРА ============
+class Game{
+  constructor(sprites){
+    this.sprites=sprites;
+    this.canvas=document.getElementById('c');
+    this.canvas.width=W;this.canvas.height=H;
+    this.ctx=this.canvas.getContext('2d');
+    this.board=new Board();
+    this.inv={1:{},2:{}};
+    ARTIFACT_NAMES.forEach(n=>{this.inv[1][n]=0;this.inv[2][n]=0});
+    this.cp=1;this.acted=0;this.maxPer=3;
+    this.sel=null;this.moveHL=[];this.atkHL=[];
+    this.jumpTargets={};this.moveCosts={};this.jumpCosts={};
+    this.state='select';this.msg='';
+    this.popupText=null;this.popupTimer=0;
+    this.fireShield={1:false,2:false};this.winner=null;
+    this.hoverCell=null;
+    this.startTurn();
+    this.canvas.addEventListener('click',e=>{
+      const rect=this.canvas.getBoundingClientRect();
+      const sx=W/rect.width,sy=H/rect.height;
+      this.handleClick(((e.clientX-rect.left)*sx)|0,((e.clientY-rect.top)*sy)|0);
+    });
+    this.canvas.addEventListener('contextmenu',e=>{e.preventDefault();if(this.sel)this.nextUnit()});
+    this.canvas.addEventListener('mousemove',e=>{
+      const rect=this.canvas.getBoundingClientRect();
+      const sx=W/rect.width,sy=H/rect.height;
+      const mx=((e.clientX-rect.left)*sx)|0,my=((e.clientY-rect.top)*sy)|0;
+      this.hoverCell={r:(my/CS)|0,c:(mx/CS)|0};
+    });
+    document.addEventListener('keydown',e=>{
+      if(e.code==='Space'){e.preventDefault();this.skipUnit()}
+      if(e.code==='KeyR'&&this.state==='game_over')this.restart();
+    });
+    this.loop();
+  }
+  restart(){
+    this.board=new Board();
+    this.inv={1:{},2:{}};
+    ARTIFACT_NAMES.forEach(n=>{this.inv[1][n]=0;this.inv[2][n]=0});
+    this.cp=1;this.acted=0;this.sel=null;
+    this.moveHL=[];this.atkHL=[];this.jumpTargets={};this.moveCosts={};this.jumpCosts={};
+    this.state='select';this.fireShield={1:false,2:false};this.winner=null;
+    document.getElementById('gameover').className='';
+    this.startTurn();
+  }
+  startTurn(){
+    this.acted=0;this.sel=null;this.state='select';
+    this.board.pUnits(this.cp).forEach(u=>u.reset());
+    this.updateMsg();this.renderSidebar();
+  }
+  endTurn(){
+    if(this.fireShield[this.cp])this.fireShield[this.cp]=false;
+    this.cp=this.cp===1?2:1;this.startTurn();this.checkWin();
+  }
+  nextUnit(){
+    if(this.sel){this.sel.done=true;this.sel.active=false}
+    this.acted++;this.sel=null;this.moveHL=[];this.atkHL=[];
+    this.jumpTargets={};this.moveCosts={};this.jumpCosts={};
+    const alive=this.board.pUnits(this.cp);
+    if(this.acted>=Math.min(this.maxPer,alive.length)){this.endTurn()}
+    else{this.state='select';this.updateMsg()}
+    this.renderSidebar();
+  }
+  updateMsg(){
+    const left=Math.min(this.maxPer,this.board.pUnits(this.cp).length)-this.acted;
+    this.msg=`Выберите юнит (${left} ост.)`;
+  }
+  showPopup(t){
+    this.popupText=t;this.popupTimer=FPS*2;
+    const el=document.getElementById('popup');el.textContent=t;el.className='show';
+    clearTimeout(this._pt);this._pt=setTimeout(()=>el.className='',2000);
+  }
+  calcMoves(u){
+    this.moveHL=[];this.atkHL=[];this.jumpTargets={};this.moveCosts={};this.jumpCosts={};
+    if(u.movesLeft<=0)return;
+    if(u.type==='archer')this._archerMoves(u);else this._meleeMoves(u);
+  }
+  _meleeMoves(u){
+    const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+    for(const[dr,dc]of dirs){
+      const nr=u.row+dr,nc=u.col+dc;
+      if(nr<0||nr>=ROWS||nc<0||nc>=COLS)continue;
+      const t=this.board.at(nr,nc);
+      if(!t){this.moveHL.push([nr,nc]);this.moveCosts[rk(nr,nc)]=1}
+      else if(t.player!==u.player){
+        const lr=nr+dr,lc=nc+dc;
+        if(u.movesLeft>=2&&this.board.free(lr,lc)){
+          this.atkHL.push([lr,lc]);this.jumpTargets[rk(lr,lc)]=t;this.jumpCosts[rk(lr,lc)]=2;
+        }
+      }
+    }
+  }
+  _archerMoves(u){
+    const dirs=[[-1,0],[1,0],[0,-1],[0,1]];
+    for(const[dr,dc]of dirs){
+      for(let d=1;d<=2;d++){
+        if(u.movesLeft<d)break;
+        const nr=u.row+dr*d,nc=u.col+dc*d;
+        if(!this.board.free(nr,nc))break;
+        this.moveHL.push([nr,nc]);this.moveCosts[rk(nr,nc)]=d;
+      }
+    }
+    for(const[dr,dc]of dirs){
+      const nr=u.row+dr,nc=u.col+dc;
+      if(nr>=0&&nr<ROWS&&nc>=0&&nc<COLS){
+        const t=this.board.at(nr,nc);
+        if(t&&t.player!==u.player)this.atkHL.push([nr,nc]);
+      }
+    }
+  }
+  selectUnit(r,c){
+    const u=this.board.at(r,c);
+    if(u&&u.player===this.cp&&!u.done){
+      this.sel=u;u.active=true;u.movesLeft=u.maxMoves;
+      this.state='move';this.calcMoves(u);
+      const mt=this.board.towerAt(r,c);if(mt)mt.occupant=u;
+      this.renderSidebar();return true;
+    }return false;
+  }
+  moveUnit(r,c){
+    if(!this.moveHL.some(h=>h[0]===r&&h[1]===c))return false;
+    const u=this.sel,cost=this.moveCosts[rk(r,c)]||1;
+    if(u.movesLeft<cost)return false;
+    u.row=r;u.col=c;u.movesLeft-=cost;
+    const mt=this.board.towerAt(r,c);if(mt)mt.occupant=u;
+    if(u.movesLeft<=0)this.nextUnit();else{this.calcMoves(u);this.renderSidebar()}
+    return true;
+  }
+  doJumpAttack(r,c){
+    if(!this.atkHL.some(h=>h[0]===r&&h[1]===c))return false;
+    const u=this.sel,t=this.jumpTargets[rk(r,c)];
+    if(!t)return this.doArcherShoot(r,c);
+    const cost=this.jumpCosts[rk(r,c)]||1;
+    if(u.movesLeft<cost)return false;
+    u.row=r;u.col=c;u.movesLeft-=cost;
+    let dmg=u.damage;if(this.fireShield[t.player])dmg=Math.max(0,dmg-2);
+    t.takeDamage(dmg);this.board.removeDead();this.checkWin();
+    if(u.movesLeft<=0)this.nextUnit();else{this.calcMoves(u);this.renderSidebar()}
+    return true;
+  }
+  doArcherShoot(r,c){
+    const u=this.sel,t=this.board.at(r,c);
+    if(!t||t.player===u.player)return false;
+    u.movesLeft--;let dmg=u.damage;
+    if(this.fireShield[t.player])dmg=Math.max(0,dmg-2);
+    t.takeDamage(dmg);this.board.removeDead();this.checkWin();
+    if(u.movesLeft<=0)this.nextUnit();else{this.calcMoves(u);this.renderSidebar()}
+    return true;
+  }
+  tryDrawCard(){
+    const u=this.sel;
+    if(u&&this.board.inRuins(u.row,u.col)&&u.movesLeft>0){
+      const a=this.board.ruins.draw();this.inv[u.player][a]++;u.movesLeft--;
+      this.showPopup('Найден: '+a);
+      if(u.movesLeft<=0)this.nextUnit();else{this.calcMoves(u);this.renderSidebar()}
+      return true;
+    }return false;
+  }
+  tryCastSpell(idx){
+    const u=this.sel;if(!u||u.movesLeft<=0)return false;
+    const mt=this.board.towerAt(u.row,u.col);
+    if(!mt||mt.occupant!==u)return false;
+    const inv=this.inv[u.player],sp=SPELL_RECIPES[idx];
+    if(!canCraft(inv,sp.recipe)){this.showPopup('Не хватает артефактов!');return false}
+    spendRecipe(inv,sp.recipe);
+    const p=u.player;
+    if(idx===0)this.board.units.forEach(x=>{if(x.player===p&&x.alive())x.hp=Math.min(x.hp+2,x.maxHp+2)});
+    if(idx===1)this.board.units.forEach(x=>{if(x.player===p&&x.alive())x.armor=Math.min(x.armor+2,x.maxArmor+4)});
+    if(idx===2)this.fireShield[p]=true;
+    u.movesLeft--;this.showPopup(sp.name+': '+sp.desc);
+    if(u.movesLeft<=0)this.nextUnit();else{this.calcMoves(u);this.renderSidebar()}
+    return true;
+  }
+  tryCraftWeapon(idx){
+    const u=this.sel;if(!u)return false;
+    const inv=this.inv[u.player],w=WEAPON_RECIPES[idx];
+    if(!canCraft(inv,w.recipe)){this.showPopup('Не хватает артефактов!');return false}
+    if(w.target==='archer'&&u.type!=='archer'){this.showPopup('Только для лучника!');return false}
+    spendRecipe(inv,w.recipe);
+    if(w.stat==='damage')u.damage+=w.value;
+    this.showPopup(w.name+': +'+w.value+' урон');this.renderSidebar();return true;
+  }
+  checkWin(){
+    if(this.board.pUnits(1).length===0){this.winner=2;this.state='game_over';this.msg='ПОБЕДА ИГРОКА 2!';this.showGameOver()}
+    else if(this.board.pUnits(2).length===0){this.winner=1;this.state='game_over';this.msg='ПОБЕДА ИГРОКА 1!';this.showGameOver()}
+  }
+  showGameOver(){
+    const el=document.getElementById('gameover');
+    const c=this.winner===1?C_P1:C_P2;
+    el.innerHTML=`<h1 style="color:${c}">${this.msg}</h1><button class="btn btn-restart" onclick="game.restart()">Рестарт (R)</button>`;
+    el.className='show';
+  }
+  skipUnit(){if(this.sel)this.nextUnit()}
+  handleClick(mx,my){
+    if(this.state==='game_over')return;
+    const c=(mx/CS)|0,r=(my/CS)|0;
+    if(this.state==='select'){this.selectUnit(r,c)}
+    else if(this.state==='move'){
+      if(this.atkHL.some(h=>h[0]===r&&h[1]===c)){
+        if(this.sel.type==='archer'){const t=this.board.at(r,c);if(t&&t.player!==this.sel.player)this.doArcherShoot(r,c);else this.doJumpAttack(r,c)}
+        else this.doJumpAttack(r,c);
+      }else if(this.moveHL.some(h=>h[0]===r&&h[1]===c)){this.moveUnit(r,c)}
+      else{
+        const clicked=this.board.at(r,c);
+        if(clicked&&clicked.player===this.cp&&!clicked.done){
+          if(this.sel&&this.sel.movesLeft===this.sel.maxMoves){this.sel.active=false;this.selectUnit(r,c)}
+        }else if(this.sel&&this.sel.movesLeft===this.sel.maxMoves){
+          this.sel.active=false;this.sel=null;this.moveHL=[];this.atkHL=[];
+          this.jumpTargets={};this.moveCosts={};this.jumpCosts={};this.state='select';this.renderSidebar();
+        }
+      }
+    }
+  }
+  // ---- РЕНДЕР CANVAS ----
+  draw(){
+    const ctx=this.ctx,sp=this.sprites;
+    // Земля
+    for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+      const x=c*CS,y=r*CS;
+      if(!sp.drawGround(ctx,x,y)){
+        const g=ctx.createLinearGradient(x,y,x+CS,y+CS);
+        g.addColorStop(0,'#3a6428');g.addColorStop(1,'#2e5420');
+        ctx.fillStyle=g;ctx.fillRect(x,y,CS,CS);
+      }
+      ctx.fillStyle='rgba(0,0,0,.06)';
+      if((r+c)%2===0)ctx.fillRect(x,y,CS,CS);
+    }
+    // Замки
+    this._drawCastle(this.board.castle1,C_P1,'castle_1','rgba(80,140,220,.12)');
+    this._drawCastle(this.board.castle2,C_P2,'castle_2','rgba(220,60,60,.12)');
+    // Башни мага
+    for(const mt of this.board.towers){
+      const x=mt.col*CS,y=mt.row*CS;
+      if(!sp.drawImg(ctx,'tower',x,y,CS,CS)){
+        ctx.fillStyle='rgba(100,50,160,.5)';ctx.fillRect(x,y,CS,CS);
+        ctx.strokeStyle='#9664ff';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,CS-2,CS-2);
+        ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillStyle='#dcc0ff';ctx.fillText('M',x+CS/2,y+CS/2);
+      }
+    }
+    // Руины
+    const ru=this.board.ruins;
+    const rx=ru.lc*CS,ry=ru.tr*CS;
+    if(!sp.drawImg(ctx,'monastery',rx,ry,CS*2,CS*2)){
+      ctx.fillStyle='rgba(80,80,60,.6)';ctx.fillRect(rx,ry,CS*2,CS*2);
+      ctx.strokeStyle='#96966e';ctx.lineWidth=2;ctx.strokeRect(rx+1,ry+1,CS*2-2,CS*2-2);
+      ctx.font='bold 14px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle='#c8c8a0';ctx.fillText('RUINS',rx+CS,ry+CS);
+    }
+    // Highlights
+    if(this.state==='move'){
+      if(this.sel){ctx.fillStyle=C_SEL;ctx.fillRect(this.sel.col*CS,this.sel.row*CS,CS,CS)}
+      ctx.fillStyle=C_MOVE;for(const[r,c]of this.moveHL)ctx.fillRect(c*CS,r*CS,CS,CS);
+      ctx.fillStyle=C_ATK;for(const[r,c]of this.atkHL)ctx.fillRect(c*CS,r*CS,CS,CS);
+    }
+    // Hover
+    if(this.hoverCell){
+      const{r,c}=this.hoverCell;
+      if(r>=0&&r<ROWS&&c>=0&&c<COLS){
+        ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=2;
+        ctx.strokeRect(c*CS+1,r*CS+1,CS-2,CS-2);
+      }
+    }
+    // Units
+    for(const u of this.board.units){
+      if(!u.alive())continue;
+      const x=u.col*CS,y=u.row*CS;
+      // Спрайт юнита
+      const sheetKey=`${u.player}_${u.type}_sheet`;
+      const frameW=u.type==='cavalry'?320:192;
+      const frameH=frameW;
+      if(!sp.drawFrame(ctx,sheetKey,frameW,frameH,x,y,CS,CS)){
+        // Фоллбек: цветной прямоугольник с буквой
+        const pc=u.player===1?C_P1:C_P2;
+        ctx.fillStyle=pc;
+        ctx.beginPath();ctx.roundRect(x+4,y+4,CS-8,CS-8,6);ctx.fill();
+        ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1;
+        ctx.beginPath();ctx.roundRect(x+4,y+4,CS-8,CS-8,6);ctx.stroke();
+        ctx.font='bold 18px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillStyle='#fff';
+        ctx.fillText(UNIT_LABELS[u.type],x+CS/2,y+CS/2);
+      }
+      // HP bar
+      const bw=CS-6,bx=x+3;
+      let by=y+CS-9;
+      const mhp=Math.max(u.maxHp,u.hp,1);
+      ctx.fillStyle='#000';ctx.fillRect(bx,by,bw,4);
+      ctx.fillStyle='#00c800';ctx.fillRect(bx,by,Math.max(0,bw*u.hp/mhp),4);
+      // Armor bar
+      by-=5;const mar=Math.max(u.maxArmor,u.armor,1);
+      ctx.fillStyle='#000';ctx.fillRect(bx,by,bw,4);
+      ctx.fillStyle='#6464ff';ctx.fillRect(bx,by,Math.max(0,bw*u.armor/mar),4);
+      // Active border
+      if(u.active){ctx.strokeStyle='#ffd700';ctx.lineWidth=2;ctx.strokeRect(x+1,y+1,CS-2,CS-2)}
+      // Done overlay
+      if(u.done){ctx.fillStyle='rgba(0,0,0,.35)';ctx.fillRect(x,y,CS,CS)}
+    }
+    // Grid
+    ctx.strokeStyle=C_GRID;ctx.lineWidth=1;
+    for(let r=0;r<=ROWS;r++){ctx.beginPath();ctx.moveTo(0,r*CS);ctx.lineTo(W,r*CS);ctx.stroke()}
+    for(let c=0;c<=COLS;c++){ctx.beginPath();ctx.moveTo(c*CS,0);ctx.lineTo(c*CS,H);ctx.stroke()}
+  }
+  _drawCastle(castle,color,imgKey,bg){
+    const x=castle.lc*CS,y=castle.tr*CS,s=4*CS;
+    const ctx=this.ctx;
+    ctx.fillStyle=bg;ctx.fillRect(x,y,s,s);
+    if(!this.sprites.drawImg(ctx,imgKey,x,y,s,s)){
+      ctx.strokeStyle=color;ctx.lineWidth=3;ctx.strokeRect(x+2,y+2,s-4,s-4);
+      ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle=color;ctx.fillText('CASTLE',x+s/2,y+s/2-10);
+      ctx.font='bold 14px sans-serif';
+      ctx.fillText(`P${castle.player}`,x+s/2,y+s/2+14);
+    }
+  }
+  // ---- САЙДБАР ----
+  renderSidebar(){
+    const sb=document.getElementById('sidebar');
+    const p=this.cp,inv=this.inv[p],u=this.sel;
+    let h='';
+    h+=`<h2 class="${p===1?'p1-color':'p2-color'}">Игрок ${p}</h2>`;
+    h+=`<div class="msg">${this.msg}</div>`;
+    h+=`<div class="score">P1: ${this.board.pUnits(1).length} | P2: ${this.board.pUnits(2).length}</div>`;
+    for(let i=1;i<=2;i++)if(this.fireShield[i])h+=`<div class="shield-badge">Щит P${i} активен</div>`;
+    h+='<hr class="divider">';
+    h+=`<div class="section-title" style="color:#ffd700">Артефакты</div>`;
+    for(const n of ARTIFACT_NAMES){
+      const cnt=inv[n],col=ARTIFACT_COLORS[n];
+      h+=`<div class="artifact-list ${cnt>0?'has':'empty'}" style="color:${cnt>0?col:'#786e5a'}">${n}: ${cnt}</div>`;
+    }
+    h+='<hr class="divider">';
+    if(u){
+      h+=`<div class="unit-info"><div class="unit-name">${UNIT_NAMES[u.type]}</div>`;
+      h+=`<div class="unit-stat">HP: ${u.hp}/${u.maxHp} | ARM: ${u.armor}/${u.maxArmor}</div>`;
+      h+=`<div class="unit-stat">DMG: ${u.damage} | Ходы: ${u.movesLeft}/${u.maxMoves}</div></div>`;
+      if(this.board.inRuins(u.row,u.col)&&u.movesLeft>0){
+        h+=`<button class="btn btn-artifact" onclick="game.tryDrawCard()">Тянуть артефакт (1 ход)</button>`;
+      }
+      const mt=this.board.towerAt(u.row,u.col);
+      if(mt&&mt.occupant===u&&u.movesLeft>0){
+        h+=`<div class="section-title" style="color:#c896ff">Заклинания</div>`;
+        SPELL_RECIPES.forEach((sp,i)=>{
+          const ok=canCraft(inv,sp.recipe);
+          const cls=ok?'btn-spell':'btn-spell locked';
+          const recipe=Object.entries(sp.recipe).map(([k,v])=>`${v}x ${k}`).join(', ');
+          h+=`<button class="btn ${cls}" ${ok?`onclick="game.tryCastSpell(${i})"`:''}>
+            <b>${sp.name}</b><div class="recipe">${recipe}</div><div class="desc">${sp.desc}</div></button>`;
+        });
+      }
+      h+=`<div class="section-title" style="color:#ffb448">Крафт оружия</div>`;
+      WEAPON_RECIPES.forEach((w,i)=>{
+        const ok=canCraft(inv,w.recipe)&&(w.target==='any'||w.target===u.type);
+        const cls=ok?'btn-weapon':'btn-weapon locked';
+        const recipe=Object.entries(w.recipe).map(([k,v])=>`${v}x ${k}`).join(', ');
+        let desc=w.desc;if(w.target==='archer')desc+=' [лучник]';
+        h+=`<button class="btn ${cls}" ${ok?`onclick="game.tryCraftWeapon(${i})"`:''}>
+          <b>${w.name}</b><div class="recipe">${recipe}</div><div class="desc">${desc}</div></button>`;
+      });
+    }
+    h+='<hr class="divider">';
+    h+=`<button class="btn btn-skip" onclick="game.skipUnit()">Пропустить (ПКМ/Space)</button>`;
+    h+=`<button class="btn btn-surrender" onclick="game.surrender()">Сдаться</button>`;
+    sb.innerHTML=h;
+  }
+  surrender(){
+    this.winner=this.cp===1?2:1;this.state='game_over';
+    this.msg=`Игрок ${this.cp} сдался!`;this.showGameOver();
+  }
+  loop(){
+    this.draw();
+    requestAnimationFrame(()=>this.loop());
+  }
+}
+
+// ============ ЗАПУСК ============
+let game;
+window.onload=()=>{
+  const sp=new SpriteManager();
+  sp.loadAll();
+  // Ждём загрузки спрайтов (макс 5 сек), потом запускаем
+  let tries=0;
+  const check=setInterval(()=>{
+    tries++;
+    if(sp.ready||tries>50){
+      clearInterval(check);
+      document.getElementById('loading').className='hide';
+      game=new Game(sp);
+    }
+  },100);
+};
+</script>
+</body>
+</html>

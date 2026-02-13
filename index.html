@@ -2,12 +2,11 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Рыцари и Замки</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#1a1410;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Segoe UI',Arial,sans-serif;overflow:hidden}
-#wrap{display:flex;box-shadow:0 0 60px rgba(0,0,0,.7);border-radius:8px;overflow:hidden;transform-origin:center center}
+body{background:#1a1410;display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:'Segoe UI',Arial,sans-serif}
+#wrap{display:flex;box-shadow:0 0 60px rgba(0,0,0,.7);border-radius:8px;overflow:hidden}
 canvas{display:block;cursor:pointer}
 #sidebar{width:300px;height:960px;background:linear-gradient(180deg,#1e1914 0%,#16120e 100%);color:#dcd2be;overflow-y:auto;border-left:2px solid #3c3228;padding:12px;user-select:none}
 #sidebar::-webkit-scrollbar{width:6px}
@@ -564,20 +563,10 @@ class Game{
 
 // ============ ЗАПУСК ============
 let game;
-function fitToScreen(){
-  const wrap=document.getElementById('wrap');
-  if(!wrap)return;
-  const totalW=W+300, totalH=H;
-  const scaleX=window.innerWidth/totalW;
-  const scaleY=window.innerHeight/totalH;
-  const s=Math.min(scaleX,scaleY,1);
-  wrap.style.transform='scale('+s+')';
-}
 window.onload=()=>{
-  fitToScreen();
-  window.addEventListener('resize',fitToScreen);
   const sp=new SpriteManager();
   sp.loadAll();
+  // Ждём загрузки спрайтов (макс 5 сек), потом запускаем
   let tries=0;
   const check=setInterval(()=>{
     tries++;
@@ -585,7 +574,6 @@ window.onload=()=>{
       clearInterval(check);
       document.getElementById('loading').className='hide';
       game=new Game(sp);
-      fitToScreen();
     }
   },100);
 };

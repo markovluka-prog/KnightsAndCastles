@@ -1899,10 +1899,10 @@ body {
         const sy = 165;
         const sw = 91;
         const sh = 57;
-        const hx = dx + dw * 0.05;
-        const hy = dy + dh * 0.44;
-        const hw = dw * 0.9;
-        const hh = dh * 0.47;
+        const hx = dx + dw * 0.02;
+        const hy = dy + dh * 0.46;
+        const hw = dw * 0.96;
+        const hh = dh * 0.46;
         ctx.drawImage(horse, sx, sy, sw, sh, hx, hy, hw, hh);
       } else {
         ctx.fillStyle = "rgba(110, 102, 96, 0.9)";
@@ -1919,9 +1919,9 @@ body {
         const rsw = 79;
         const rsh = 89;
         const riderW = dw * 0.32;
-        const riderH = dh * 0.38;
+        const riderH = dh * 0.40;
         const rx = dx + dw * 0.34;
-        const ry = dy + dh * 0.13;
+        const ry = dy + dh * 0.10;
         ctx.drawImage(rider, rsx, rsy, rsw, rsh, rx, ry, riderW, riderH);
       } else {
         ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;
@@ -2169,12 +2169,8 @@ body {
       const baseY = unit.row * CELL_SIZE;
 
       if (unit.type === "knight") {
-        const mountedScale = 1.8;
-        const size = CELL_SIZE * mountedScale;
-        const offset = CELL_SIZE * ((mountedScale - 1) / 2);
-        const drawX = Math.max(0, Math.min(WIDTH - size, baseX - offset));
-        const drawY = Math.max(0, Math.min(HEIGHT - size, baseY - offset));
-        this.drawKnightMountedComposite(ctx, unit, drawX, drawY, size, size);
+        // Knight-on-horse must stay within a single cell to avoid overlap clutter.
+        this.drawKnightMountedComposite(ctx, unit, baseX, baseY, CELL_SIZE, CELL_SIZE);
       } else {
       const sprite = this.assets.get(this.spriteKeyForUnit(unit));
       const frame = UNIT_TYPES[unit.type].frame;

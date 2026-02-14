@@ -970,6 +970,10 @@ body {
           this.surrender();
           return;
         }
+        if (action === "back-menu") {
+          this.backToMenu();
+          return;
+        }
         if (action === "restart") {
           this.startMatch(this.mode || "pvp");
           return;
@@ -1006,6 +1010,19 @@ body {
     onAssetsReady() {
       this.screen = "menu";
       this.message = "Выберите режим игры";
+      this.renderSidebar();
+    }
+
+    backToMenu() {
+      this.screen = "menu";
+      this.mode = null;
+      this.selectedUnit = null;
+      this.previewUnitId = null;
+      this.winner = null;
+      this.lastEvent = "";
+      this.clearHighlights();
+      this.message = "Выберите режим игры";
+      this.ai.reset();
       this.renderSidebar();
     }
 
@@ -1794,6 +1811,7 @@ body {
         '<button class="btn danger" data-action="surrender" ' +
         (this.winner === null ? "" : "disabled") +
         '>Сдаться</button>';
+      html += '<button class="btn secondary" data-action="back-menu">В меню</button>';
 
       if (this.winner !== null) {
         html += '<hr class="sep" />';

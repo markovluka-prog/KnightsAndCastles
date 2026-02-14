@@ -16,7 +16,7 @@ let package = Package(
             bundleVersion: "1",
             appIcon: .placeholder(icon: .gameController),
             accentColor: .presetColor(.blue),
-            supportedDeviceFamilies: [.phone, .pad, .mac],
+            supportedDeviceFamilies: [.phone, .pad],
             supportedInterfaceOrientations: [
                 .portrait,
                 .landscapeLeft,

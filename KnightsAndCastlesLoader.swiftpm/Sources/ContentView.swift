@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import WebKit
 
@@ -78,7 +79,7 @@ final class GameWebLoader: ObservableObject {
 
     private func ensureLocalWebExists() throws {
         let fm = FileManager.default
-        try fm.createDirectory(at: appSupportDirectory, withIntermediateDirectories: true)
+        try fm.createDirectory(at: appSupportDirectory, withIntermediateDirectories: true, attributes: nil)
 
         if fm.fileExists(atPath: localWebDirectory.path),
            fm.fileExists(atPath: localWebDirectory.appendingPathComponent("index.html").path) {
@@ -147,7 +148,7 @@ final class GameWebLoader: ObservableObject {
         let tempRoot = fm.temporaryDirectory
             .appendingPathComponent("KnightsAndCastlesLoader-\(UUID().uuidString)", isDirectory: true)
 
-        try fm.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        try fm.createDirectory(at: tempRoot, withIntermediateDirectories: true, attributes: nil)
 
         do {
             for (index, file) in webFiles.enumerated() {
@@ -158,7 +159,7 @@ final class GameWebLoader: ObservableObject {
                 let data = try await downloadRawFile(path: file.path)
                 let destination = tempRoot.appendingPathComponent(file.path)
                 let parent = destination.deletingLastPathComponent()
-                try fm.createDirectory(at: parent, withIntermediateDirectories: true)
+                try fm.createDirectory(at: parent, withIntermediateDirectories: true, attributes: nil)
                 try data.write(to: destination, options: .atomic)
             }
 

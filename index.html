@@ -459,6 +459,10 @@ body {
     return row >= 0 && row < ROWS && col >= 0 && col < COLS;
   }
 
+  function isMountedUnitType(type) {
+    return type === "cavalry";
+  }
+
   function manhattan(r1, c1, r2, c2) {
     return Math.abs(r1 - r2) + Math.abs(c1 - c2);
   }
@@ -1820,11 +1824,17 @@ body {
       ctx.fillStyle = "#241c15";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      if (unit.type === "knight") {
+        this.drawKnightMountedComposite(ctx, unit, 0, 0, canvas.width, canvas.height);
+        return;
+      }
+
       const key = this.spriteKeyForUnit(unit);
       const img = this.assets.get(key);
       if (img) {
         const frame = UNIT_TYPES[unit.type].frame;
-        ctx.drawImage(img, 0, 0, frame, frame, 0, 0, canvas.width, canvas.height);
+        const frameIndex = this.frameIndexForUnit(unit);
+        ctx.drawImage(img, frame * frameIndex, 0, frame, frame, 0, 0, canvas.width, canvas.height);
       } else {
         ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;
         ctx.fillRect(22, 22, 100, 100);
@@ -1856,7 +1866,42 @@ body {
     }
 
     spriteKeyForUnit(unit) {
-      return "u_" + (unit.player === 1 ? "blue" : "red") + "_" + unit.type;
+      const color = unit.player === 1 ? "blue" : "red";
+      if (unit.type === "knight") {
+        return "u_" + color + "_knight_rider";
+      }
+      return "u_" + color + "_" + unit.type;
+    }
+
+    drawKnightMountedComposite(ctx, unit, dx, dy, dw, dh) {
+      const horse = this.assets.get("horse_knight_base");
+      if (horse) {
+        const horseFrame = 128;
+        const sx = horseFrame;
+        const sy = horseFrame;
+        ctx.drawImage(horse, sx, sy, horseFrame, horseFrame, dx, dy, dw, dh);
+      } else {
+        ctx.fillStyle = "rgba(110, 102, 96, 0.9)";
+        ctx.beginPath();
+        ctx.ellipse(dx + dw * 0.54, dy + dh * 0.63, dw * 0.34, dh * 0.2, -0.15, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const rider = this.assets.get(this.spriteKeyForUnit(unit));
+      if (rider) {
+        const riderW = dw * 0.58;
+        const riderH = dh * 0.58;
+        const rx = dx + dw * 0.2;
+        const ry = dy + dh * 0.04;
+        ctx.drawImage(rider, 0, 0, 192, 192, rx, ry, riderW, riderH);
+      } else {
+        ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;
+        ctx.fillRect(dx + dw * 0.28, dy + dh * 0.1, dw * 0.35, dh * 0.35);
+      }
+    }
+
+    frameIndexForUnit(unit) {
+      return 0;
     }
 
     drawMenuCanvas() {
@@ -1997,29 +2042,71 @@ body {
       ctx.fillStyle = "#463c2d";
       ctx.fillRect(x, y, w, h);
 
-      this.drawBrokenColumn(x + 16, y + 15, 16, 44, "#8f8477");
-      this.drawBrokenColumn(x + 58, y + 20, 15, 36, "#7f7467");
+      const monastery = this.assets.get("monastery_ruins");
+      if (monastery) {
+        ctx.save();
+        ctx.globalAlpha = 0.85;
+        // Lower body of monastery sprite keeps Tiny Swords style and fits 2x2 ruins zone.
+        ctx.drawImage(monastery, 0, 128, 192, 192, x + 3, y - 6, w - 6, h + 12);
+        ctx.restore();
+      }
+
+      this.drawBrokenColumn(x + 12, y + 20, 15, 40, "#8a8178");
+      this.drawBrokenColumn(x + 60, y + 24, 14, 35, "#776d63");
+
+      ctx.fillStyle = "rgba(39,30,23,0.9)";
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y + 2);
+      ctx.lineTo(x + 26, y + 2);
+      ctx.lineTo(x + 17, y + 18);
+      ctx.lineTo(x + 4, y + 15);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(x + w - 3, y + 8);
+      ctx.lineTo(x + w - 24, y + 14);
+      ctx.lineTo(x + w - 10, y + 28);
+      ctx.lineTo(x + w - 3, y + 25);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = "rgba(30,24,19,0.85)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x + 30, y + 24);
+      ctx.lineTo(x + 38, y + 40);
+      ctx.lineTo(x + 30, y + 56);
+      ctx.lineTo(x + 42, y + 74);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x + 70, y + 18);
+      ctx.lineTo(x + 58, y + 36);
+      ctx.lineTo(x + 66, y + 52);
+      ctx.lineTo(x + 54, y + 72);
+      ctx.stroke();
 
       ctx.fillStyle = "#68615a";
       ctx.beginPath();
-      ctx.ellipse(x + 22, y + 73, 10, 5, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 22, y + 76, 10, 5, 0, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = "#76706a";
       ctx.beginPath();
-      ctx.ellipse(x + 50, y + 64, 13, 6, 0.3, 0, Math.PI * 2);
+      ctx.ellipse(x + 48, y + 67, 13, 6, 0.28, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.fillStyle = "#5f8053";
       ctx.beginPath();
-      ctx.ellipse(x + 35, y + 82, 8, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 34, y + 84, 8, 4, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.beginPath();
-      ctx.ellipse(x + 68, y + 80, 7, 4, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 68, y + 83, 7, 4, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = "rgba(0,0,0,0.28)";
-      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "rgba(0,0,0,0.26)";
+      ctx.fillRect(x, y + 10, w, h - 10);
       ctx.fillStyle = "#d4c4a7";
       ctx.font = "bold 12px sans-serif";
       ctx.textAlign = "center";
@@ -2052,16 +2139,44 @@ body {
       const baseX = unit.col * CELL_SIZE;
       const baseY = unit.row * CELL_SIZE;
 
+      if (unit.type === "knight") {
+        const mountedScale = 2.2;
+        const size = CELL_SIZE * mountedScale;
+        const offset = CELL_SIZE * ((mountedScale - 1) / 2);
+        this.drawKnightMountedComposite(ctx, unit, baseX - offset, baseY - offset, size, size);
+      } else {
       const sprite = this.assets.get(this.spriteKeyForUnit(unit));
       const frame = UNIT_TYPES[unit.type].frame;
+      const frameIndex = this.frameIndexForUnit(unit);
 
       if (sprite) {
-        if (unit.type === "cavalry") {
-          const size = CELL_SIZE * 1.8;
-          const offset = CELL_SIZE * 0.4;
-          ctx.drawImage(sprite, 0, 0, frame, frame, baseX - offset, baseY - offset, size, size);
+        if (isMountedUnitType(unit.type)) {
+          const mountedScale = 1.8;
+          const size = CELL_SIZE * mountedScale;
+          const offset = CELL_SIZE * ((mountedScale - 1) / 2);
+          ctx.drawImage(
+            sprite,
+            frame * frameIndex,
+            0,
+            frame,
+            frame,
+            baseX - offset,
+            baseY - offset,
+            size,
+            size
+          );
         } else {
-          ctx.drawImage(sprite, 0, 0, frame, frame, baseX, baseY, CELL_SIZE, CELL_SIZE);
+          ctx.drawImage(
+            sprite,
+            frame * frameIndex,
+            0,
+            frame,
+            frame,
+            baseX,
+            baseY,
+            CELL_SIZE,
+            CELL_SIZE
+          );
         }
       } else {
         ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;
@@ -2071,6 +2186,7 @@ body {
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(UNIT_TYPES[unit.type].letter, baseX + CELL_SIZE / 2, baseY + CELL_SIZE / 2);
+      }
       }
 
       if (unit.id === this.previewUnitId) {
@@ -2150,17 +2266,19 @@ body {
 
   assets.add("cover", "Knights_and_Castles_1920x1080.png");
 
-  assets.add("u_blue_knight", root + "Units/Blue Units/Warrior/Warrior_Idle.png");
+  assets.add("u_blue_knight_rider", root + "Units/Blue Units/Warrior/Warrior_Idle.png");
   assets.add("u_blue_cavalry", root + "Units/Blue Units/Lancer/Lancer_Idle.png");
   assets.add("u_blue_archer", root + "Units/Blue Units/Archer/Archer_Idle.png");
 
-  assets.add("u_red_knight", root + "Units/Red Units/Warrior/Warrior_Idle.png");
+  assets.add("u_red_knight_rider", root + "Units/Red Units/Warrior/Warrior_Idle.png");
   assets.add("u_red_cavalry", root + "Units/Red Units/Lancer/Lancer_Idle.png");
   assets.add("u_red_archer", root + "Units/Red Units/Archer/Archer_Idle.png");
 
   assets.add("castle_blue", root + "Buildings/Blue Buildings/Castle.png");
   assets.add("castle_red", root + "Buildings/Red Buildings/Castle.png");
   assets.add("tower_blue", root + "Buildings/Blue Buildings/Tower.png");
+  assets.add("monastery_ruins", root + "Buildings/Blue Buildings/Monastery.png");
+  assets.add("horse_knight_base", "assets/external/horse_sheet.png");
 
   const canvas = document.getElementById("gameCanvas");
   const sidebar = document.getElementById("sidebar");

@@ -1914,7 +1914,8 @@ body {
         const riderW = dw * 0.34;
         const riderH = dh * 0.50;
         const rx = dx + dw * 0.33;
-        const ry = dy + dh * 0.02;
+        // Seat rider lower so he visually sits on the horse instead of floating.
+        const ry = dy + dh * 0.11;
         ctx.drawImage(rider, rsx, rsy, rsw, rsh, rx, ry, riderW, riderH);
       } else {
         ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;

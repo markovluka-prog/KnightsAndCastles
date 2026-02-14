@@ -1049,7 +1049,10 @@ body {
           return;
         }
         if (action === "back-menu") {
-          this.backToMenu();
+          const shouldLeave = window.confirm("Выйти в меню? Текущая партия будет потеряна.");
+          if (shouldLeave) {
+            this.backToMenu();
+          }
           return;
         }
         if (action === "restart") {

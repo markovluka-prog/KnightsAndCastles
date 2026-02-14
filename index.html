@@ -1876,10 +1876,16 @@ body {
     drawKnightMountedComposite(ctx, unit, dx, dy, dw, dh) {
       const horse = this.assets.get("horse_knight_base");
       if (horse) {
-        const horseFrame = 128;
-        const sx = horseFrame;
-        const sy = horseFrame;
-        ctx.drawImage(horse, sx, sy, horseFrame, horseFrame, dx, dy, dw, dh);
+        // Use tight crop of a gallop frame so the horse is readable and fits the tile.
+        const sx = 149;
+        const sy = 165;
+        const sw = 91;
+        const sh = 57;
+        const hx = dx + dw * 0.05;
+        const hy = dy + dh * 0.44;
+        const hw = dw * 0.9;
+        const hh = dh * 0.47;
+        ctx.drawImage(horse, sx, sy, sw, sh, hx, hy, hw, hh);
       } else {
         ctx.fillStyle = "rgba(110, 102, 96, 0.9)";
         ctx.beginPath();
@@ -1889,11 +1895,16 @@ body {
 
       const rider = this.assets.get(this.spriteKeyForUnit(unit));
       if (rider) {
-        const riderW = dw * 0.58;
-        const riderH = dh * 0.58;
-        const rx = dx + dw * 0.2;
-        const ry = dy + dh * 0.04;
-        ctx.drawImage(rider, 0, 0, 192, 192, rx, ry, riderW, riderH);
+        // Tight crop around warrior body to place it on the saddle.
+        const rsx = 62;
+        const rsy = 48;
+        const rsw = 79;
+        const rsh = 89;
+        const riderW = dw * 0.32;
+        const riderH = dh * 0.38;
+        const rx = dx + dw * 0.34;
+        const ry = dy + dh * 0.13;
+        ctx.drawImage(rider, rsx, rsy, rsw, rsh, rx, ry, riderW, riderH);
       } else {
         ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;
         ctx.fillRect(dx + dw * 0.28, dy + dh * 0.1, dw * 0.35, dh * 0.35);
@@ -2140,10 +2151,12 @@ body {
       const baseY = unit.row * CELL_SIZE;
 
       if (unit.type === "knight") {
-        const mountedScale = 2.2;
+        const mountedScale = 1.8;
         const size = CELL_SIZE * mountedScale;
         const offset = CELL_SIZE * ((mountedScale - 1) / 2);
-        this.drawKnightMountedComposite(ctx, unit, baseX - offset, baseY - offset, size, size);
+        const drawX = Math.max(0, Math.min(WIDTH - size, baseX - offset));
+        const drawY = Math.max(0, Math.min(HEIGHT - size, baseY - offset));
+        this.drawKnightMountedComposite(ctx, unit, drawX, drawY, size, size);
       } else {
       const sprite = this.assets.get(this.spriteKeyForUnit(unit));
       const frame = UNIT_TYPES[unit.type].frame;

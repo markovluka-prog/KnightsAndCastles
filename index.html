@@ -459,10 +459,6 @@ body {
     return row >= 0 && row < ROWS && col >= 0 && col < COLS;
   }
 
-  function isMountedUnitType(type) {
-    return type === "cavalry";
-  }
-
   function manhattan(r1, c1, r2, c2) {
     return Math.abs(r1 - r2) + Math.abs(c1 - c2);
   }
@@ -1842,8 +1838,8 @@ body {
       ctx.fillStyle = "#241c15";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      if (unit.type === "knight") {
-        this.drawKnightMountedComposite(ctx, unit, 0, 0, canvas.width, canvas.height);
+      if (unit.type === "cavalry") {
+        this.drawMountedComposite(ctx, unit, 0, 0, canvas.width, canvas.height);
         return;
       }
 
@@ -1885,13 +1881,10 @@ body {
 
     spriteKeyForUnit(unit) {
       const color = unit.player === 1 ? "blue" : "red";
-      if (unit.type === "knight") {
-        return "u_" + color + "_knight_rider";
-      }
       return "u_" + color + "_" + unit.type;
     }
 
-    drawKnightMountedComposite(ctx, unit, dx, dy, dw, dh) {
+    drawMountedComposite(ctx, unit, dx, dy, dw, dh) {
       const horse = this.assets.get("horse_knight_base");
       if (horse) {
         // Use tight crop of a gallop frame so the horse is readable and fits the tile.
@@ -1913,15 +1906,15 @@ body {
 
       const rider = this.assets.get(this.spriteKeyForUnit(unit));
       if (rider) {
-        // Tight crop around warrior body to place it on the saddle.
-        const rsx = 62;
+        // Lancer crop tuned to keep spear + torso visible while still fitting in one tile.
+        const rsx = 115;
         const rsy = 48;
-        const rsw = 79;
-        const rsh = 89;
-        const riderW = dw * 0.32;
-        const riderH = dh * 0.40;
-        const rx = dx + dw * 0.34;
-        const ry = dy + dh * 0.10;
+        const rsw = 69;
+        const rsh = 150;
+        const riderW = dw * 0.34;
+        const riderH = dh * 0.50;
+        const rx = dx + dw * 0.33;
+        const ry = dy + dh * 0.02;
         ctx.drawImage(rider, rsx, rsy, rsw, rsh, rx, ry, riderW, riderH);
       } else {
         ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;
@@ -2168,31 +2161,15 @@ body {
       const baseX = unit.col * CELL_SIZE;
       const baseY = unit.row * CELL_SIZE;
 
-      if (unit.type === "knight") {
-        // Knight-on-horse must stay within a single cell to avoid overlap clutter.
-        this.drawKnightMountedComposite(ctx, unit, baseX, baseY, CELL_SIZE, CELL_SIZE);
+      if (unit.type === "cavalry") {
+        // Mounted units are rendered as horse+rider composite and stay inside one tile.
+        this.drawMountedComposite(ctx, unit, baseX, baseY, CELL_SIZE, CELL_SIZE);
       } else {
-      const sprite = this.assets.get(this.spriteKeyForUnit(unit));
-      const frame = UNIT_TYPES[unit.type].frame;
-      const frameIndex = this.frameIndexForUnit(unit);
+        const sprite = this.assets.get(this.spriteKeyForUnit(unit));
+        const frame = UNIT_TYPES[unit.type].frame;
+        const frameIndex = this.frameIndexForUnit(unit);
 
-      if (sprite) {
-        if (isMountedUnitType(unit.type)) {
-          const mountedScale = 1.8;
-          const size = CELL_SIZE * mountedScale;
-          const offset = CELL_SIZE * ((mountedScale - 1) / 2);
-          ctx.drawImage(
-            sprite,
-            frame * frameIndex,
-            0,
-            frame,
-            frame,
-            baseX - offset,
-            baseY - offset,
-            size,
-            size
-          );
-        } else {
+        if (sprite) {
           ctx.drawImage(
             sprite,
             frame * frameIndex,
@@ -2204,16 +2181,15 @@ body {
             CELL_SIZE,
             CELL_SIZE
           );
+        } else {
+          ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;
+          ctx.fillRect(baseX + 5, baseY + 5, CELL_SIZE - 10, CELL_SIZE - 10);
+          ctx.fillStyle = "#fff";
+          ctx.font = "bold 17px sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(UNIT_TYPES[unit.type].letter, baseX + CELL_SIZE / 2, baseY + CELL_SIZE / 2);
         }
-      } else {
-        ctx.fillStyle = unit.player === 1 ? COLORS.p1 : COLORS.p2;
-        ctx.fillRect(baseX + 5, baseY + 5, CELL_SIZE - 10, CELL_SIZE - 10);
-        ctx.fillStyle = "#fff";
-        ctx.font = "bold 17px sans-serif";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "middle";
-        ctx.fillText(UNIT_TYPES[unit.type].letter, baseX + CELL_SIZE / 2, baseY + CELL_SIZE / 2);
-      }
       }
 
       if (unit.id === this.previewUnitId) {
@@ -2293,11 +2269,11 @@ body {
 
   assets.add("cover", "Knights_and_Castles_1920x1080.png");
 
-  assets.add("u_blue_knight_rider", root + "Units/Blue Units/Warrior/Warrior_Idle.png");
+  assets.add("u_blue_knight", root + "Units/Blue Units/Warrior/Warrior_Idle.png");
   assets.add("u_blue_cavalry", root + "Units/Blue Units/Lancer/Lancer_Idle.png");
   assets.add("u_blue_archer", root + "Units/Blue Units/Archer/Archer_Idle.png");
 
-  assets.add("u_red_knight_rider", root + "Units/Red Units/Warrior/Warrior_Idle.png");
+  assets.add("u_red_knight", root + "Units/Red Units/Warrior/Warrior_Idle.png");
   assets.add("u_red_cavalry", root + "Units/Red Units/Lancer/Lancer_Idle.png");
   assets.add("u_red_archer", root + "Units/Red Units/Archer/Archer_Idle.png");
 

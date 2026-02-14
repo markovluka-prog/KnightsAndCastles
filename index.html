@@ -2062,6 +2062,20 @@ body {
       const w = RUINS.width * CELL_SIZE;
       const h = RUINS.height * CELL_SIZE;
 
+      const customRuins = this.assets.get("ruins_custom");
+      if (customRuins) {
+        // Crop transparent margins and fit custom ruins art into the 2x2 zone.
+        ctx.drawImage(customRuins, 16, 104, 992, 831, x - 2, y - 10, w + 4, h + 16);
+        ctx.fillStyle = "rgba(0,0,0,0.18)";
+        ctx.fillRect(x, y + 8, w, h - 8);
+        ctx.fillStyle = "#e4d2b2";
+        ctx.font = "bold 12px sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Руины", x + w / 2, y + h - 10);
+        return;
+      }
+
       ctx.fillStyle = "#463c2d";
       ctx.fillRect(x, y, w, h);
 
@@ -2282,6 +2296,7 @@ body {
   assets.add("castle_red", root + "Buildings/Red Buildings/Castle.png");
   assets.add("tower_blue", root + "Buildings/Blue Buildings/Tower.png");
   assets.add("monastery_ruins", root + "Buildings/Blue Buildings/Monastery.png");
+  assets.add("ruins_custom", "assets/custom/ruins_custom.png");
   assets.add("horse_knight_base", "assets/external/horse_sheet.png");
 
   const canvas = document.getElementById("gameCanvas");

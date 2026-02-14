@@ -2150,7 +2150,18 @@ body {
       const customRuins = this.assets.get("ruins_custom");
       if (customRuins) {
         // Harmonize custom ruins with board palette and perspective.
-        ctx.fillStyle = "#4c412f";
+        const grassCenter = ctx.createRadialGradient(
+          x + w * 0.5,
+          y + h * 0.56,
+          w * 0.08,
+          x + w * 0.5,
+          y + h * 0.56,
+          w * 0.74
+        );
+        grassCenter.addColorStop(0, "#90c764");
+        grassCenter.addColorStop(0.52, "#6f9f47");
+        grassCenter.addColorStop(1, "#466633");
+        ctx.fillStyle = grassCenter;
         ctx.fillRect(x, y, w, h);
 
         ctx.fillStyle = "rgba(0,0,0,0.24)";
@@ -2164,6 +2175,20 @@ body {
         // Crop inner composition to avoid glow/vignette and keep clean fit in 2x2.
         ctx.drawImage(customRuins, 170, 170, 700, 620, x + 3, y + 2, w - 6, h - 4);
         ctx.restore();
+
+        const centerGlow = ctx.createRadialGradient(
+          x + w * 0.5,
+          y + h * 0.58,
+          w * 0.1,
+          x + w * 0.5,
+          y + h * 0.58,
+          w * 0.72
+        );
+        centerGlow.addColorStop(0, "rgba(126,173,86,0.36)");
+        centerGlow.addColorStop(0.56, "rgba(96,140,66,0.2)");
+        centerGlow.addColorStop(1, "rgba(60,88,42,0)");
+        ctx.fillStyle = centerGlow;
+        ctx.fillRect(x, y, w, h);
 
         ctx.strokeStyle = "rgba(52,43,32,0.55)";
         ctx.lineWidth = 1.5;
@@ -2188,7 +2213,7 @@ body {
         ctx.ellipse(x + 74, y + 79, 8, 4, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        ctx.fillStyle = "rgba(0,0,0,0.15)";
+        ctx.fillStyle = "rgba(0,0,0,0.09)";
         ctx.fillRect(x, y + 10, w, h - 10);
         ctx.fillStyle = "#e4d2b2";
         ctx.font = "bold 12px sans-serif";
@@ -2198,7 +2223,18 @@ body {
         return;
       }
 
-      ctx.fillStyle = "#463c2d";
+      const fallbackGrass = ctx.createRadialGradient(
+        x + w * 0.5,
+        y + h * 0.56,
+        w * 0.06,
+        x + w * 0.5,
+        y + h * 0.56,
+        w * 0.74
+      );
+      fallbackGrass.addColorStop(0, "#86b557");
+      fallbackGrass.addColorStop(0.56, "#648d40");
+      fallbackGrass.addColorStop(1, "#425f31");
+      ctx.fillStyle = fallbackGrass;
       ctx.fillRect(x, y, w, h);
 
       const monastery = this.assets.get("monastery_ruins");
@@ -2264,7 +2300,7 @@ body {
       ctx.ellipse(x + 68, y + 83, 7, 4, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = "rgba(0,0,0,0.26)";
+      ctx.fillStyle = "rgba(0,0,0,0.14)";
       ctx.fillRect(x, y + 10, w, h - 10);
       ctx.fillStyle = "#d4c4a7";
       ctx.font = "bold 12px sans-serif";

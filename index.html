@@ -1676,6 +1676,7 @@ body {
       html += '<div class="score">Счёт: P1 ' + p1Count + ' : ' + p2Count + ' P2</div>';
       html += '<div class="line">Режим: ' + (this.mode === "ai" ? "Против ИИ" : "2 Игрока") + '</div>';
       html += '<div class="line">Активаций осталось: ' + activationLeft + '</div>';
+      html += '<button class="btn secondary" data-action="back-menu" style="margin-top:8px">В меню</button>';
 
       if (this.shieldTurns[1] > 0) {
         html += '<div class="badge p1">Щит P1 активен</div>';
@@ -1811,7 +1812,6 @@ body {
         '<button class="btn danger" data-action="surrender" ' +
         (this.winner === null ? "" : "disabled") +
         '>Сдаться</button>';
-      html += '<button class="btn secondary" data-action="back-menu">В меню</button>';
 
       if (this.winner !== null) {
         html += '<hr class="sep" />';

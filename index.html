@@ -2799,7 +2799,7 @@ body {
 
       const cover = this.assets.get("cover");
       if (cover) {
-        const scale = Math.min(WIDTH / cover.width, HEIGHT / cover.height);
+        const scale = Math.max(WIDTH / cover.width, HEIGHT / cover.height);
         const dw = cover.width * scale;
         const dh = cover.height * scale;
         const dx = (WIDTH - dw) / 2;

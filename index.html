@@ -895,36 +895,78 @@ body {
       this.player = player;
       this.frameWait = 18;
       this.frameCounter = 0;
+      this.personality = null;
+      this.turnTargets = new Map();
+      this._initPersonality();
     }
 
     reset() {
       this.frameCounter = 0;
+      this.turnTargets = new Map();
+      this._initPersonality();
+    }
+
+    _initPersonality() {
+      const personalities = [
+        {
+          name: "aggressor",
+          attackMult: 1.4,
+          advanceMult: 1.6,
+          retreatMult: 0.3,
+          focusMult: 1.2,
+          formationMult: 0.6,
+          ruinsMult: 0.7,
+          towerMult: 0.8
+        },
+        {
+          name: "tactician",
+          attackMult: 1.1,
+          advanceMult: 1.0,
+          retreatMult: 1.1,
+          focusMult: 1.5,
+          formationMult: 1.4,
+          ruinsMult: 1.1,
+          towerMult: 1.2
+        },
+        {
+          name: "defender",
+          attackMult: 0.85,
+          advanceMult: 0.65,
+          retreatMult: 1.8,
+          focusMult: 1.0,
+          formationMult: 1.6,
+          ruinsMult: 1.8,
+          towerMult: 1.8
+        }
+      ];
+      this.personality = personalities[Math.floor(Math.random() * personalities.length)];
+    }
+
+    _noise() {
+      return (Math.random() - 0.5) * 24;
     }
 
     update() {
-      if (!this.game.isGameActive()) {
-        return;
-      }
-      if (this.game.mode !== "ai") {
-        return;
-      }
-      if (this.game.currentPlayer !== this.player) {
-        return;
-      }
-      if (this.game.winner !== null) {
-        return;
-      }
+      if (!this.game.isGameActive()) return;
+      if (this.game.mode !== "ai") return;
+      if (this.game.currentPlayer !== this.player) return;
+      if (this.game.winner !== null) return;
       this.frameCounter += 1;
-      if (this.frameCounter < this.frameWait) {
-        return;
-      }
+      if (this.frameCounter < this.frameWait) return;
       this.frameCounter = 0;
       this.takeStep();
     }
 
     takeStep() {
       const game = this.game;
-      if (game.currentPlayer !== this.player || game.winner !== null) {
+      if (game.currentPlayer !== this.player || game.winner !== null) return;
+
+      if (game.pendingWeaponEquip) {
+        const targets = game.weaponEquipTargets(game.pendingWeaponEquip);
+        if (targets.length) {
+          targets.sort((a, b) => b.damage - a.damage);
+          game.equipPendingWeapon(targets[0].id);
+        }
         return;
       }
 
@@ -940,6 +982,7 @@ body {
         .filter((u) => game.canUnitAct(u));
 
       if (!candidates.length) {
+        this.turnTargets = new Map();
         game.forceEndTurn();
         return;
       }
@@ -947,53 +990,121 @@ body {
       let best = null;
       candidates.forEach((u) => {
         const action = this.bestActionForUnit(u);
-        if (!action) {
-          return;
-        }
+        if (!action) return;
         if (!best || action.score > best.score) {
-          best = {
-            unit: u,
-            action
-          };
+          best = { unit: u, action };
         }
       });
 
       if (!best) {
+        this.turnTargets = new Map();
         game.forceEndTurn();
         return;
       }
 
       game.selectUnit(best.unit.row, best.unit.col, true);
-      if (!game.selectedUnit || game.selectedUnit.id !== best.unit.id) {
-        return;
-      }
+      if (!game.selectedUnit || game.selectedUnit.id !== best.unit.id) return;
       const refined = this.bestActionForUnit(game.selectedUnit) || { type: "skip", score: -999 };
       this.executeAction(refined);
     }
 
     executeAction(action) {
       const game = this.game;
-      if (!action) {
-        game.skipSelected(true);
-        return;
-      }
+      if (!action) { game.skipSelected(true); return; }
       if (action.type === "attack") {
+        if (action.targetId != null) {
+          this.turnTargets.set(action.targetId, (this.turnTargets.get(action.targetId) || 0) + 1);
+        }
         game.performAttack(action.row, action.col, true);
         return;
       }
-      if (action.type === "move") {
-        game.performMove(action.row, action.col, true);
-        return;
-      }
-      if (action.type === "draw") {
-        game.drawArtifact(true);
-        return;
-      }
-      if (action.type === "spell") {
-        game.castSpell(action.index, true);
-        return;
-      }
+      if (action.type === "move") { game.performMove(action.row, action.col, true); return; }
+      if (action.type === "draw") { game.drawArtifact(true); return; }
+      if (action.type === "spell") { game.castSpell(action.index, true); return; }
       game.skipSelected(true);
+    }
+
+    // Total potential damage enemies can deal to a cell next turn
+    exposureAt(row, col) {
+      const enemies = this.game.ownUnits(otherPlayer(this.player));
+      let total = 0;
+      enemies.forEach((e) => {
+        const dist = manhattan(e.row, e.col, row, col);
+        if (e.type === "archer" && dist === 1) {
+          total += e.damage;
+        } else if (e.type !== "archer" && dist <= 2) {
+          total += e.damage;
+        }
+      });
+      return total;
+    }
+
+    // How many allies can also hit this enemy right now (focus-fire coordination)
+    focusFireBonus(enemy) {
+      const game = this.game;
+      let count = 0;
+      game.ownUnits(this.player).forEach((ally) => {
+        if (ally.done) return;
+        const attacks = game.attackActionsFor(ally);
+        if (attacks.some((a) => a.targetRow === enemy.row && a.targetCol === enemy.col)) {
+          count += 1;
+        }
+      });
+      const alreadyHit = this.turnTargets.has(enemy.id) ? 1 : 0;
+      return (count + alreadyHit) * 180 * this.personality.focusMult;
+    }
+
+    // Priority bonus for targeting wounded enemies
+    progressiveTargetBonus(enemy) {
+      if (enemy.maxHp <= 0) return 0;
+      return (1 - enemy.hp / enemy.maxHp) * 350;
+    }
+
+    // Small bonus for staying in formation with allies
+    formationScore(row, col) {
+      let bonus = 0;
+      this.game.ownUnits(this.player).forEach((ally) => {
+        if (manhattan(ally.row, ally.col, row, col) <= 2) bonus += 40;
+      });
+      return bonus * this.personality.formationMult;
+    }
+
+    // How valuable is visiting the ruins right now?
+    ruinsValue() {
+      const inv = this.game.inventory[this.player];
+      let bestReadiness = 0;
+      SPELLS.forEach((spell) => {
+        const needed = Object.keys(spell.recipe);
+        let have = 0;
+        needed.forEach((k) => { if ((inv[k] || 0) >= 1) have += 1; });
+        const r = have / needed.length;
+        if (r > bestReadiness) bestReadiness = r;
+      });
+      WEAPONS.forEach((w) => {
+        const needed = Object.keys(w.recipe);
+        let have = 0;
+        needed.forEach((k) => { if ((inv[k] || 0) >= 1) have += 1; });
+        const r = have / needed.length;
+        if (r > bestReadiness) bestReadiness = r;
+      });
+      return 40 + bestReadiness * 120;
+    }
+
+    // How close are we to casting any spell?
+    spellReadiness() {
+      const game = this.game;
+      const inv = game.inventory[this.player];
+      let best = 0;
+      SPELLS.forEach((spell) => {
+        if (game.canAfford(inv, spell.recipe)) { best = 500; return; }
+        const needed = Object.keys(spell.recipe);
+        let have = 0;
+        needed.forEach((k) => { have += Math.min(inv[k] || 0, spell.recipe[k]); });
+        const total = needed.reduce((s, k) => s + spell.recipe[k], 0);
+        const r = (have / total) * 300;
+        if (r > best) best = r;
+      });
+      return best;
     }
 
     bestActionForUnit(unit) {
@@ -1002,145 +1113,145 @@ body {
         return { type: "skip", score: -300 };
       }
 
+      const p = this.personality;
       const actions = [];
-      const attackActions = game.attackActionsFor(unit);
-      attackActions.forEach((a) => {
+
+      // ── Attack actions ───────────────────────────────────────────────────
+      game.attackActionsFor(unit).forEach((a) => {
         const target = game.board.unitAt(a.targetRow, a.targetCol);
-        if (!target || target.player === unit.player) {
-          return;
-        }
+        if (!target || target.player === unit.player) return;
+
         const damage = game.computeDamage(unit, target);
-        let score = 100 * damage;
-        if (damage >= target.hp) {
-          score += 10000;
-        }
-        if (unit.type === "cavalry") {
-          score += 180;
-        }
+        let score = damage * 100;
+
+        if (damage >= target.hp) score += 10000;
+
+        score += this.progressiveTargetBonus(target);
+        score += this.focusFireBonus(target);
+
+        const landR = a.landingRow != null ? a.landingRow : unit.row;
+        const landC = a.landingCol != null ? a.landingCol : unit.col;
+        score -= this.exposureAt(landR, landC) * 60;
+
         if (unit.type === "archer") {
-          score += 120;
+          score -= this.exposureAt(unit.row, unit.col) * 50;
         }
-        if (unit.type === "knight") {
-          score += 70;
-        }
-        actions.push({
-          type: "attack",
-          row: a.row,
-          col: a.col,
-          score
-        });
+
+        const typeBonus = unit.type === "cavalry" ? 180 : unit.type === "archer" ? 120 : 70;
+        score += typeBonus * p.attackMult;
+
+        score += this._noise();
+        actions.push({ type: "attack", row: a.row, col: a.col, targetId: target.id, score });
       });
 
+      // ── Ruins: draw artifact ─────────────────────────────────────────────
       if (game.board.inRuins(unit.row, unit.col) && unit.movesLeft >= 1) {
-        actions.push({
-          type: "draw",
-          score: 200 + (unit.type === "knight" ? 15 : 0)
-        });
+        actions.push({ type: "draw", score: this.ruinsValue() * p.ruinsMult + this._noise() });
       }
 
+      // ── Tower: cast spell ────────────────────────────────────────────────
       if (game.board.isTower(unit.row, unit.col) && unit.movesLeft >= 1) {
         SPELLS.forEach((spell, index) => {
-          if (!game.canAfford(game.inventory[this.player], spell.recipe)) {
-            return;
-          }
-          let score = 500;
+          if (!game.canAfford(game.inventory[this.player], spell.recipe)) return;
+          let score = 0;
           if (index === 0) {
-            const wounded = game
-              .ownUnits(this.player)
-              .reduce((sum, ally) => sum + Math.max(0, ally.maxHp - ally.hp), 0);
-            score += wounded * 25;
+            const wounded = game.ownUnits(this.player)
+              .reduce((s, ally) => s + Math.max(0, ally.maxHp - ally.hp), 0);
+            score = 300 + wounded * 40;
+          } else if (index === 1) {
+            const lostArmor = game.ownUnits(this.player)
+              .reduce((s, ally) => s + Math.max(0, ally.startArmor - ally.armor), 0);
+            score = 200 + lostArmor * 50;
+          } else {
+            const exposureTotal = game.ownUnits(this.player)
+              .reduce((s, ally) => s + this.exposureAt(ally.row, ally.col), 0);
+            score = 250 + exposureTotal * 30;
           }
-          if (index === 1) {
-            score += 40 * game.ownUnits(this.player).length;
-          }
-          if (index === 2) {
-            score += 150;
-          }
-          actions.push({
-            type: "spell",
-            index,
-            score
-          });
+          actions.push({ type: "spell", index, score: score * p.towerMult + this._noise() });
         });
       }
 
-      const moveActions = game.moveActionsFor(unit);
+      // ── Move actions ─────────────────────────────────────────────────────
       const nearestEnemyBefore = this.nearestEnemyDistance(unit.row, unit.col);
       const nearestTowerBefore = this.nearestTowerDistance(unit.row, unit.col);
+      const hpRatio = unit.maxHp > 0 ? unit.hp / unit.maxHp : 1;
+      const isWounded = hpRatio < 0.4;
+      const isCritical = unit.hp <= 1;
 
-      moveActions.forEach((m) => {
+      game.moveActionsFor(unit).forEach((m) => {
         const nearestEnemyAfter = this.nearestEnemyDistance(m.row, m.col);
         const nearestTowerAfter = this.nearestTowerDistance(m.row, m.col);
-
-        let score = 0;
         const enemyDelta = nearestEnemyBefore - nearestEnemyAfter;
-        if (enemyDelta > 0) {
-          score += 20 * enemyDelta;
-        }
+        let score = 0;
 
-        if (game.board.inRuins(m.row, m.col)) {
-          score += 50;
-        }
+        if (enemyDelta > 0) score += 22 * enemyDelta * p.advanceMult;
+
+        const exposure = this.exposureAt(m.row, m.col);
+        score -= exposure * (isCritical ? 120 : 35);
+
+        if (isWounded && enemyDelta < 0) score += 80 * p.retreatMult;
+        if (isCritical && enemyDelta < 0) score += 150 * p.retreatMult;
+
+        if (game.board.inRuins(m.row, m.col)) score += this.ruinsValue() * p.ruinsMult;
+        if (game.board.isTower(m.row, m.col)) score += this.spellReadiness() * p.towerMult;
+
+        score += this.formationScore(m.row, m.col);
 
         const towerDelta = nearestTowerBefore - nearestTowerAfter;
-        if (towerDelta > 0) {
-          score += 5 * towerDelta;
-        }
+        if (towerDelta > 0) score += 5 * towerDelta;
 
         if (unit.type === "cavalry") {
           score += 15 * enemyDelta;
+          // Flanking: reward approaching from a different angle than allies
+          const enemies = game.ownUnits(otherPlayer(this.player));
+          let newAngle = false;
+          enemies.forEach((e) => {
+            if (manhattan(m.row, m.col, e.row, e.col) <= 2) {
+              const sameAxis = game.ownUnits(this.player).some(
+                (ally) => ally.id !== unit.id &&
+                  ((Math.abs(ally.row - e.row) <= 1 && Math.abs(m.row - e.row) <= 1 &&
+                    Math.sign(ally.row - e.row) === Math.sign(m.row - e.row)) ||
+                   (Math.abs(ally.col - e.col) <= 1 && Math.abs(m.col - e.col) <= 1 &&
+                    Math.sign(ally.col - e.col) === Math.sign(m.col - e.col)))
+              );
+              if (!sameAxis) newAngle = true;
+            }
+          });
+          if (newAngle) score += 90;
         }
 
         if (unit.type === "archer") {
-          if (nearestEnemyAfter <= 1) {
-            score -= 120;
-          } else {
-            score += 20;
-          }
+          if (nearestEnemyAfter <= 1) score -= 160;
+          else score += 30 * p.advanceMult;
         }
 
         if (unit.type === "knight" && game.turnNumber <= 3) {
           const idealRow = this.player === 2 ? 14 : 5;
           const beforeLine = Math.abs(unit.row - idealRow);
           const afterLine = Math.abs(m.row - idealRow);
-          if (afterLine < beforeLine) {
-            score += 60;
-          }
+          if (afterLine < beforeLine) score += 60;
         }
 
-        actions.push({
-          type: "move",
-          row: m.row,
-          col: m.col,
-          score
-        });
+        score += this._noise();
+        actions.push({ type: "move", row: m.row, col: m.col, score });
       });
 
-      if (!actions.length) {
-        return { type: "skip", score: -200 };
-      }
-
+      if (!actions.length) return { type: "skip", score: -200 };
       actions.sort((a, b) => b.score - a.score);
       return actions[0];
     }
 
     nearestEnemyDistance(row, col) {
       const enemies = this.game.ownUnits(otherPlayer(this.player));
-      if (!enemies.length) {
-        return 0;
-      }
+      if (!enemies.length) return 0;
       let best = Infinity;
-      enemies.forEach((e) => {
-        best = Math.min(best, manhattan(row, col, e.row, e.col));
-      });
+      enemies.forEach((e) => { best = Math.min(best, manhattan(row, col, e.row, e.col)); });
       return best;
     }
 
     nearestTowerDistance(row, col) {
       let best = Infinity;
-      TOWERS.forEach((t) => {
-        best = Math.min(best, manhattan(row, col, t.row, t.col));
-      });
+      TOWERS.forEach((t) => { best = Math.min(best, manhattan(row, col, t.row, t.col)); });
       return best;
     }
   }
@@ -2663,10 +2774,6 @@ body {
       }
 
       html += '<hr class="sep" />';
-      html +=
-        '<button class="btn skip" data-action="skip" ' +
-        (this.selectedUnit && this.winner === null && !waitingWeaponEquip ? "" : "disabled") +
-        '>Пропустить (ПКМ/Space)</button>';
       html +=
         '<button class="btn danger" data-action="surrender" ' +
         (this.winner === null && !waitingWeaponEquip ? "" : "disabled") +

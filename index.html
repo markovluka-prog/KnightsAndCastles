@@ -1746,12 +1746,6 @@ body {
     }
 
     onAssetsReady() {
-      if (this.pendingSavedState && this.restoreSavedState(this.pendingSavedState)) {
-        this.pendingSavedState = null;
-        this.message = this.message || "Партия восстановлена.";
-        this.renderSidebar();
-        return;
-      }
       this.screen = "menu";
       this.message = "Выберите режим игры";
       this.renderSidebar();
